@@ -91,6 +91,7 @@ function saveConfig(partial) {
   if (partial.temperature !== undefined) config.temperature = partial.temperature
   if (partial.maxTokens !== undefined) config.maxTokens = partial.maxTokens
   if (partial.systemPrompt !== undefined) config.systemPrompt = partial.systemPrompt
+  if (partial.theme !== undefined) config.theme = partial.theme
 
   return merged
 }
@@ -124,6 +125,7 @@ const defaultVisionModel = envVars.SIMPLEX_VISION_MODEL || ''
 const chatModelStr = savedConfig.chatModel || defaultChatModel
 const visionModelStr = savedConfig.visionModel || defaultVisionModel
 const summarizationModelStr = savedConfig.summarizationModel || defaultChatModel
+const themeStr = savedConfig.theme || envVars.SIMPLEX_THEME || 'dark'
 
 const resolvedChat = resolveModel(chatModelStr)
 const resolvedVision = resolveModel(visionModelStr)
@@ -141,6 +143,7 @@ export const config = {
   maxContext: parseInt(envVars.SIMPLEX_MAX_CONTEXT || '80000', 10),
   minContext: parseInt(envVars.SIMPLEX_MIN_CONTEXT || '4000', 10),
   systemPrompt: savedConfig.systemPrompt ?? envVars.SIMPLEX_SYSTEM_PROMPT ?? 'You are Simplex AI, a helpful office assistant.',
+  theme: themeStr,
   logLevel: envVars.SIMPLEX_LOG_LEVEL || envVars.LOG_LEVEL || 'INFO',
   nativeMode: envVars.SIMPLEX_NATIVE_MODE === 'True' || envVars.SIMPLEX_NATIVE_MODE === 'true',
   simplexHome: SIMPLEX_HOME,

@@ -25,6 +25,7 @@ export function registerIpcHandlers() {
     maxContext: config.maxContext,
     minContext: config.minContext,
     systemPrompt: config.systemPrompt,
+    theme: config.theme,
   }))
 
   ipcMain.handle('config:save', (_event, partial) => config.saveConfig(partial))
