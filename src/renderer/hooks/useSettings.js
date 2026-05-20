@@ -10,6 +10,7 @@ const defaults = {
   minContext: 4000,
   systemPrompt: 'You are Simplex AI, a helpful office assistant.',
   showReasoning: true,
+  theme: 'dark',
 }
 
 export function useSettings() {

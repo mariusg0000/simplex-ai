@@ -1,3 +1,9 @@
+/**
+ * App.jsx — src/renderer/App.jsx
+ * Root layout component for Simplex AI.
+ * Composes Sidebar, ChatView, StatusBar, and Settings modal.
+ * Owns session lifecycle, chat lifecycle, settings, and theme state.
+ */
 import React from 'react'
 import { ChatView } from './components/ChatView.jsx'
 import { Sidebar } from './components/Sidebar.jsx'
@@ -6,6 +12,7 @@ import { StatusBar } from './components/StatusBar.jsx'
 import { useSessions } from './hooks/useSessions.js'
 import { useSettings } from './hooks/useSettings.js'
 import { useChat } from './hooks/useChat.js'
+import { useTheme } from './hooks/useTheme.js'
 
 export default function App() {
   const [showSettings, setShowSettings] = React.useState(false)
@@ -21,6 +28,12 @@ export default function App() {
       await sessions.saveMessages(currentId, messages)
     },
   })
+
+  // Theme — read from config, save back via settings.save on toggle
+  const { theme, toggleTheme } = useTheme(
+    settings.values.theme,
+    (newTheme) => settings.save({ ...settings.values, theme: newTheme }),
+  )
 
   const handleSelectSession = async (id) => {
     const session = await sessions.load(id)
@@ -71,6 +84,8 @@ export default function App() {
         onDelete={handleDeleteSession}
         onRename={sessions.rename}
         onSettings={() => setShowSettings(true)}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
       <div className="main-area">
         <ChatView
@@ -78,11 +93,13 @@ export default function App() {
           onSend={handleSend}
           streaming={chat.streaming}
           reasoning={chat.reasoning}
+          onAbort={chat.cancel}
         />
         <StatusBar
           tokens={chat.tokenCount}
           cost={chat.cost}
           status={chat.status}
+          activeModel={settings.values.chatModel}
         />
       </div>
       {showSettings && (
