@@ -30,6 +30,7 @@
   --bg-hover:        #252a3d;
   --bg-input:        #1a1d2e;
   --bg-glass:        rgba(19, 22, 32, 0.75);
+  --bg-session:      rgba(255, 255, 255, 0.02);
 
   --text-primary:    #e4e6f0;
   --text-secondary:  #8b90ab;
@@ -83,6 +84,7 @@
   --bg-hover:        #e0e3f0;
   --bg-input:        #ffffff;
   --bg-glass:        rgba(255, 255, 255, 0.8);
+  --bg-session:      rgba(0, 0, 0, 0.018);
 
   --text-primary:    #1a1d2e;
   --text-secondary:  #5a607a;
@@ -354,6 +356,7 @@ html, body, #root {
   padding: 9px 10px;
   border-radius: var(--radius-sm);
   cursor: pointer;
+  background: var(--bg-session);
   transition: background var(--transition);
   display: flex;
   align-items: center;
