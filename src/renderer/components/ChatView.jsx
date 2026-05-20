@@ -9,17 +9,42 @@ import { ReasoningBlock } from './ReasoningBlock.jsx'
 import { ToolCallCard } from './ToolCallCard.jsx'
 import { Send, Square } from 'lucide-react'
 
-const SUGGESTIONS = [
-  'Explică-mi un concept tehnic',
-  'Scrie cod Python',
-  'Ajutor cu un email',
-  'Rezumă un text lung',
+const ALL_SUGGESTIONS = [
+  // Office / General
+  'Redactează o minută de ședință pe baza unor notițe rapide',
+  'Ajutor cu redactarea unui e-mail oficial către clienți',
+  'Organizează un plan de lucru săptămânal pentru echipă',
+  'Proiectează structura unei prezentări de afaceri comerciale',
+  'Formulează o listă de răspunsuri pentru întrebări frecvente',
+  'Ajutor cu traducerea și adaptarea unui e-mail în mod profesional',
+  
+  // Accounting / Financial
+  'Explică deducerile fiscale aplicabile microîntreprinderilor',
+  'Ajutor cu o formulă complexă în Excel / Google Sheets',
+  'Analizează abaterile dintr-un buget de venituri și cheltuieli',
+  'Cum se calculează corect amortizarea liniară a mijloacelor fixe?',
+  'Verifică criteriile legale pentru deductibilitatea TVA',
+  'Ajutor cu structurarea unui raport de flux de numerar (Cash Flow)',
+  
+  // Legal / Contracts
+  'Redactează o clauză de confidențialitate (NDA) standard',
+  'Analizează riscurile potențiale dintr-un contract de prestări servicii',
+  'Explică obligațiile GDPR privind stocarea datelor angajaților',
+  'Pregătește o notificare oficială de reziliere a unui contract',
+  'Verifică termenele legale pentru preavizul în caz de demisie',
+  'Ajutor cu redactarea unei procuri speciale de reprezentare'
 ]
 
 export function ChatView({ messages, onSend, streaming, reasoning, onAbort }) {
   const [input, setInput] = React.useState('')
   const messagesEndRef = React.useRef(null)
   const textareaRef = React.useRef(null)
+
+  // Choose 4 random stable suggestions on new chat
+  const suggestions = React.useMemo(() => {
+    const shuffled = [...ALL_SUGGESTIONS].sort(() => 0.5 - Math.random())
+    return shuffled.slice(0, 4)
+  }, [messages.length === 0])
 
   React.useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -84,7 +109,7 @@ export function ChatView({ messages, onSend, streaming, reasoning, onAbort }) {
           <h2>Simplex AI</h2>
           <p>Send a message to start chatting</p>
           <div className="empty-state-chips">
-            {SUGGESTIONS.map((s) => (
+            {suggestions.map((s) => (
               <button
                 key={s}
                 className="suggestion-chip"
