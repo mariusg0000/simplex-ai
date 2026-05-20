@@ -3,7 +3,6 @@ import React from 'react'
 export function ModelSelector({ label, providers, selectedProvider, selectedModel, fetchModels, onProviderChange, onModelChange }) {
   const [models, setModels] = React.useState([])
   const [loading, setLoading] = React.useState(false)
-  const [search, setSearch] = React.useState('')
   const [loaded, setLoaded] = React.useState(false)
 
   React.useEffect(() => {
@@ -13,7 +12,6 @@ export function ModelSelector({ label, providers, selectedProvider, selectedMode
 
   const loadModels = async (provider) => {
     setLoading(true)
-    setSearch('')
     try {
       const result = await fetchModels(provider)
       setModels(result)
@@ -33,9 +31,11 @@ export function ModelSelector({ label, providers, selectedProvider, selectedMode
     if (provider) loadModels(provider)
   }
 
-  const filteredModels = search
-    ? models.filter((m) => m.toLowerCase().includes(search.toLowerCase()))
-    : models
+  const handleModelInput = (e) => {
+    onModelChange(e.target.value)
+  }
+
+  const datalistId = `models-${label.replace(/\s+/g, '-').toLowerCase()}`
 
   return (
     <div className="model-selector">
@@ -50,34 +50,21 @@ export function ModelSelector({ label, providers, selectedProvider, selectedMode
         {loading && <span className="text-muted">Loading...</span>}
       </div>
       {models.length > 0 && (
-        <div className="model-search">
-          <input
-            type="text"
-            placeholder="Filter models..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          {search && (
-            <button
-              className="model-search-clear"
-              onClick={() => setSearch('')}
-              title="Clear filter"
-            >
-              ×
-            </button>
-          )}
-        </div>
+        <input
+          type="text"
+          list={datalistId}
+          placeholder="Select or type model..."
+          value={selectedModel || ''}
+          onChange={handleModelInput}
+          className="model-combo-input"
+        />
       )}
       {models.length > 0 && (
-        <select value={selectedModel} onChange={(e) => onModelChange(e.target.value)}>
-          <option value="">-- Model --</option>
-          {filteredModels.slice(0, 200).map((m) => (
-            <option key={m} value={m}>{m}</option>
+        <datalist id={datalistId}>
+          {models.slice(0, 200).map((m) => (
+            <option key={m} value={m} />
           ))}
-          {filteredModels.length > 200 && (
-            <option disabled>... and {filteredModels.length - 200} more (refine filter)</option>
-          )}
-        </select>
+        </datalist>
       )}
     </div>
   )
