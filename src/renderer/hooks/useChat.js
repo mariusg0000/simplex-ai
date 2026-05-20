@@ -24,7 +24,7 @@ export function useChat({ onSave, getSettings } = {}) {
     cleanups.push(window.ipc.on('chat:done', ({ content, reasoning }) => {
       setMessages((prev) => {
         const assistantMsg = { role: 'assistant', content: content || '' }
-        if (reasoning) assistantMsg.reasoning = reasoning
+        if (reasoning) assistantMsg.reasoning = ' '
         const updated = [...prev, assistantMsg]
         onSave?.(updated, sessionId)
         return updated
