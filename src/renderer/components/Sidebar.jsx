@@ -1,5 +1,6 @@
 import React from 'react'
 import { Plus, Settings as SettingsIcon, Trash2, Edit3 } from 'lucide-react'
+import { RAGPanel } from './RAGPanel.jsx'
 
 export function Sidebar({ sessions, currentId, onSelect, onNew, onDelete, onRename, onSettings }) {
   const [editingId, setEditingId] = React.useState(null)
@@ -31,60 +32,64 @@ export function Sidebar({ sessions, currentId, onSelect, onNew, onDelete, onRena
           </button>
         </div>
       </div>
-      <div className="sidebar-list">
-        {sessions.map((session) => (
-          <div
-            key={session.id}
-            className={`session-item ${session.id === currentId ? 'active' : ''}`}
-            onClick={() => onSelect(session.id)}
-          >
-            {editingId === session.id ? (
-              <input
-                className="session-title-input"
-                value={editTitle}
-                onChange={(e) => setEditTitle(e.target.value)}
-                onBlur={handleFinishRename}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleFinishRename()
-                  if (e.key === 'Escape') setEditingId(null)
-                }}
-                autoFocus
-                onClick={(e) => e.stopPropagation()}
-                style={{
-                  width: '100%',
-                  background: 'var(--bg-primary)',
-                  border: '1px solid var(--accent)',
-                  borderRadius: 'var(--radius-sm)',
-                  color: 'var(--text-primary)',
-                  padding: '2px 6px',
-                  fontSize: 13,
-                  outline: 'none',
-                }}
-              />
-            ) : (
-              <span className="session-title">
-                {session.title || 'New Chat'}
-              </span>
-            )}
-            <div className="session-actions">
-              <button
-                className="btn-icon"
-                onClick={(e) => { e.stopPropagation(); handleStartRename(session.id, session.title) }}
-                title="Rename"
-              >
-                <Edit3 size={14} />
-              </button>
-              <button
-                className="btn-icon"
-                onClick={(e) => { e.stopPropagation(); onDelete(session.id) }}
-                title="Delete"
-              >
-                <Trash2 size={14} />
-              </button>
+      <div className="sidebar-chat-list">
+        <div className="sidebar-section-header">Chats</div>
+        <div className="sidebar-list">
+          {sessions.map((session) => (
+            <div
+              key={session.id}
+              className={`session-item ${session.id === currentId ? 'active' : ''}`}
+              onClick={() => onSelect(session.id)}
+            >
+              {editingId === session.id ? (
+                <input
+                  className="session-title-input"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  onBlur={handleFinishRename}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleFinishRename()
+                    if (e.key === 'Escape') setEditingId(null)
+                  }}
+                  autoFocus
+                  onClick={(e) => e.stopPropagation()}
+                  style={{
+                    width: '100%',
+                    background: 'var(--bg-primary)',
+                    border: '1px solid var(--accent)',
+                    borderRadius: 'var(--radius-sm)',
+                    color: 'var(--text-primary)',
+                    padding: '2px 6px',
+                    fontSize: 13,
+                    outline: 'none',
+                  }}
+                />
+              ) : (
+                <span className="session-title">
+                  {session.title || 'New Chat'}
+                </span>
+              )}
+              <div className="session-actions">
+                <button
+                  className="btn-icon"
+                  onClick={(e) => { e.stopPropagation(); handleStartRename(session.id, session.title) }}
+                  title="Rename"
+                >
+                  <Edit3 size={14} />
+                </button>
+                <button
+                  className="btn-icon"
+                  onClick={(e) => { e.stopPropagation(); onDelete(session.id) }}
+                  title="Delete"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
+      <RAGPanel />
     </div>
   )
 }
