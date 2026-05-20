@@ -19,6 +19,7 @@ export default function App() {
   const sessions = useSessions()
   const settings = useSettings()
   const chat = useChat({
+    getSettings: () => settings.values,
     onSave: async (messages, sessionId) => {
       let currentId = sessionId || sessions.currentId()
       if (!currentId) {

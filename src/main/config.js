@@ -74,6 +74,24 @@ function saveConfig(partial) {
   const existing = loadConfig() || {}
   const merged = { ...existing, ...partial }
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(merged, null, 2), 'utf-8')
+
+  // Dynamically update the active config export object properties in-memory
+  if (partial.chatModel !== undefined) {
+    config.chatModel = partial.chatModel
+    config.chatModelResolved = resolveModel(partial.chatModel)
+  }
+  if (partial.visionModel !== undefined) {
+    config.visionModel = partial.visionModel
+    config.visionModelResolved = resolveModel(partial.visionModel)
+  }
+  if (partial.summarizationModel !== undefined) {
+    config.summarizationModel = partial.summarizationModel
+    config.summarizationModelResolved = resolveModel(partial.summarizationModel)
+  }
+  if (partial.temperature !== undefined) config.temperature = partial.temperature
+  if (partial.maxTokens !== undefined) config.maxTokens = partial.maxTokens
+  if (partial.systemPrompt !== undefined) config.systemPrompt = partial.systemPrompt
+
   return merged
 }
 
