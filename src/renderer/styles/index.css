@@ -553,10 +553,20 @@ html, body, #root {
 }
 
 /* Models Tab */
-.models-tab {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
+.models-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.spare-cell .spare-placeholder {
+  padding: 12px;
+  background: var(--bg-primary);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
 }
 
 /* Model Selector */

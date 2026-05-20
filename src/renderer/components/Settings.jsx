@@ -56,7 +56,7 @@ export function Settings({ values, providers, loaded, fetchModels, onSave, onClo
 
 function ModelsTab({ form, providers, fetchModels, onChange }) {
   return (
-    <div className="models-tab">
+    <div className="models-grid">
       <ModelSelector
         label="Chat model"
         providers={providers}
@@ -99,6 +99,10 @@ function ModelsTab({ form, providers, fetchModels, onChange }) {
           onChange('summarizationModel', `${provider}/${model}`)
         }}
       />
+      <div className="model-selector spare-cell">
+        <label>Spare</label>
+        <div className="spare-placeholder">Reserved for future use</div>
+      </div>
     </div>
   )
 }
