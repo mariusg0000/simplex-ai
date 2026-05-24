@@ -16,6 +16,43 @@ import { executeTool } from '../engine/python-bridge.js'
 import { StreamingToolParser, formatResult, formatDisplayForActivityLog } from '../engine/tool-parser.js'
 
 let abortController = null
+const MAX_ACTIVE_SKILLS = 3
+const ACTIVE_SKILLS_BY_SESSION = new Map()
+
+const SKILL_CONTROL_TOOLS = [
+  {
+    name: 'load_skill',
+    description: 'Load a skill into ACTIVE SKILLS DETAILS so its full prompt stays pinned before chat history.',
+    parameters: {
+      type: 'object',
+      properties: {
+        skill_name: { type: 'string', description: 'Skill name from AVAILABLE SKILLS.' },
+      },
+      required: ['skill_name'],
+    },
+  },
+  {
+    name: 'unload_skill',
+    description: 'Unload a previously loaded skill from ACTIVE SKILLS DETAILS.',
+    parameters: {
+      type: 'object',
+      properties: {
+        skill_name: { type: 'string', description: 'Currently active skill name.' },
+      },
+      required: ['skill_name'],
+    },
+  },
+  {
+    name: 'list_active_skills',
+    description: 'List currently active loaded skills.',
+    parameters: { type: 'object', properties: {}, required: [] },
+  },
+  {
+    name: 'clear_active_skills',
+    description: 'Unload all currently active skills.',
+    parameters: { type: 'object', properties: {}, required: [] },
+  },
+]
 
 /**
  * WHAT:    Retrieves the primary application window instance.
@@ -26,6 +63,16 @@ let abortController = null
  */
 function getMainWindow() {
   return BrowserWindow.getAllWindows()[0]
+}
+
+function sessionKey(sessionId) {
+  return sessionId || '__ephemeral__'
+}
+
+function getActiveSkills(sessionId) {
+  const key = sessionKey(sessionId)
+  if (!ACTIVE_SKILLS_BY_SESSION.has(key)) ACTIVE_SKILLS_BY_SESSION.set(key, [])
+  return ACTIVE_SKILLS_BY_SESSION.get(key)
 }
 
 function normalizeError(err) {
@@ -59,9 +106,111 @@ function formatToolExecutionSuccess(name, output) {
   return `TOOL_EXECUTION_OK\n${JSON.stringify(payload, null, 2)}`
 }
 
-async function dispatchToolBlock(block) {
+function handleSkillControlTool(name, args, sessionId) {
+  const active = getActiveSkills(sessionId)
+  const skillName = String(args?.skill_name || '').trim()
+
+  if (name === 'list_active_skills') {
+    return {
+      ok: true,
+      kind: 'skill_control',
+      name,
+      args,
+      resultText: `SKILL_LIST\n${JSON.stringify({ active_skills: active.map((s) => s.name) }, null, 2)}`,
+    }
+  }
+
+  if (name === 'clear_active_skills') {
+    ACTIVE_SKILLS_BY_SESSION.set(sessionKey(sessionId), [])
+    return {
+      ok: true,
+      kind: 'skill_control',
+      name,
+      args,
+      resultText: 'SKILL_CLEAR_OK\nAll active skills were unloaded.',
+    }
+  }
+
+  if (!skillName) {
+    return {
+      ok: false,
+      kind: 'skill_control',
+      name,
+      args,
+      resultText: formatToolExecutionError(name, args, 'Missing required argument: skill_name'),
+    }
+  }
+
+  if (name === 'load_skill') {
+    const skill = skillRegistry.get(skillName)
+    if (!skill || !skill.enabled) {
+      return {
+        ok: false,
+        kind: 'skill_control',
+        name,
+        args,
+        resultText: formatToolExecutionError(name, args, 'Skill not found or disabled', `Requested: ${skillName}`),
+      }
+    }
+
+    const exists = active.find((s) => s.name === skill.name)
+    if (exists) {
+      exists.lastUsedAt = Date.now()
+      return {
+        ok: true,
+        kind: 'skill_control',
+        name,
+        args,
+        resultText: `SKILL_LOAD_OK\n${JSON.stringify({ loaded: skill.name, already_active: true }, null, 2)}`,
+      }
+    }
+
+    if (active.length >= MAX_ACTIVE_SKILLS) {
+      active.sort((a, b) => (a.lastUsedAt || 0) - (b.lastUsedAt || 0))
+      active.shift()
+    }
+
+    active.push({ ...skill, loadedAt: Date.now(), lastUsedAt: Date.now() })
+    return {
+      ok: true,
+      kind: 'skill_control',
+      name,
+      args,
+      resultText: `SKILL_LOAD_OK\n${JSON.stringify({ loaded: skill.name, active_count: active.length, max_active: MAX_ACTIVE_SKILLS }, null, 2)}`,
+    }
+  }
+
+  if (name === 'unload_skill') {
+    const before = active.length
+    const next = active.filter((s) => s.name !== skillName)
+    ACTIVE_SKILLS_BY_SESSION.set(sessionKey(sessionId), next)
+    if (before === next.length) {
+      return {
+        ok: false,
+        kind: 'skill_control',
+        name,
+        args,
+        resultText: formatToolExecutionError(name, args, 'Skill is not active', `Requested: ${skillName}`),
+      }
+    }
+    return {
+      ok: true,
+      kind: 'skill_control',
+      name,
+      args,
+      resultText: `SKILL_UNLOAD_OK\n${JSON.stringify({ unloaded: skillName, active_count: next.length }, null, 2)}`,
+    }
+  }
+
+  return null
+}
+
+async function dispatchToolBlock(block, sessionId) {
   const name = block?.name
   const args = block?.args || {}
+
+  const skillControl = handleSkillControlTool(name, args, sessionId)
+  if (skillControl) return skillControl
 
   const tool = toolRegistry.get(name)
   if (tool) {
@@ -196,8 +345,9 @@ export function registerIpcHandlers() {
 
     try {
       const sessionDir = sessionId ? database.sessionDir(sessionId) : null
+      const runtimeTools = [...toolRegistry.list(), ...SKILL_CONTROL_TOOLS]
       const knownTools = new Set([
-        ...toolRegistry.list().map((t) => t.name),
+        ...runtimeTools.map((t) => t.name),
         ...agentRegistry.list().map((a) => a.name),
         ...skillRegistry.list().map((s) => s.name),
       ])
@@ -210,7 +360,8 @@ export function registerIpcHandlers() {
       for (let round = 1; round <= maxRounds; round += 1) {
         if (abortController.signal.aborted) break
 
-        const systemMsg = buildSystemPrompt(toolRegistry.list(), agentRegistry.list(), skillRegistry.list(), sessionDir)
+        const activeSkills = getActiveSkills(sessionId)
+        const systemMsg = buildSystemPrompt(runtimeTools, agentRegistry.list(), skillRegistry.list(), sessionDir, activeSkills)
         const fullMessages = [systemMsg, ...conversation]
         const parser = new StreamingToolParser(knownTools)
         let roundVisibleContent = ''
@@ -266,9 +417,15 @@ export function registerIpcHandlers() {
         win.webContents.send('chat:tool', [{ ...block, display: displayLine, round }])
         win.webContents.send('chat:status', { value: 'tool_run', content: `Running: ${block.name}...` })
 
-        const dispatch = await dispatchToolBlock(block)
+        const dispatch = await dispatchToolBlock(block, sessionId)
         const wrappedResult = formatResult(dispatch.name, dispatch.resultText)
         conversation.push({ role: 'user', content: wrappedResult })
+
+        if (dispatch.kind === 'skill_control' && dispatch.ok && block.args?.skill_name) {
+          const active = getActiveSkills(sessionId)
+          const hit = active.find((s) => s.name === String(block.args.skill_name).trim())
+          if (hit) hit.lastUsedAt = Date.now()
+        }
 
         win.webContents.send('chat:status', {
           value: dispatch.ok ? 'tool_done' : 'tool_error',

@@ -85,7 +85,26 @@ function buildEnvSection() {
   return envCache
 }
 
-export function buildSystemPrompt(tools, agents, skills, sessionFolder) {
+function buildSkillsSection(skills) {
+  if (!skills || skills.length === 0) return ''
+  const lines = ['AVAILABLE SKILLS:']
+  for (const s of skills) {
+    lines.push(`- ${s.name}: ${(s.description || '').trim()}`)
+  }
+  return lines.join('\n')
+}
+
+function buildActiveSkillsDetails(activeSkills) {
+  if (!activeSkills || activeSkills.length === 0) return ''
+  const lines = ['ACTIVE SKILLS DETAILS:']
+  for (const s of activeSkills) {
+    lines.push(`### ${s.name}`)
+    lines.push(s.skillPrompt || '')
+  }
+  return lines.join('\n')
+}
+
+export function buildSystemPrompt(tools, agents, skills, sessionFolder, activeSkills = []) {
   const envSection = buildEnvSection()
   let content = config.systemPrompt
 
@@ -96,6 +115,16 @@ export function buildSystemPrompt(tools, agents, skills, sessionFolder) {
   if (agents.length > 0) {
     const descs = agents.map(a => `- **${a.name}**: ${(a.rolePrompt || '').slice(0, 100)}`).join('\n')
     content += '\n\nAVAILABLE AGENTS:\n' + descs
+  }
+
+  const skillsSection = buildSkillsSection(skills)
+  if (skillsSection) {
+    content += `\n\n${skillsSection}`
+  }
+
+  const activeSkillsSection = buildActiveSkillsDetails(activeSkills)
+  if (activeSkillsSection) {
+    content += `\n\n${activeSkillsSection}`
   }
 
   if (tools.length > 0) {
