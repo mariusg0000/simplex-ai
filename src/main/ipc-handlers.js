@@ -13,7 +13,13 @@ import { agentRegistry } from '../engine/agent-registry.js'
 import { toolRegistry } from '../engine/tool-registry.js'
 import { skillRegistry } from '../engine/skill-registry.js'
 import { executeTool } from '../engine/python-bridge.js'
-import { StreamingToolParser, formatResult, formatDisplayForActivityLog } from '../engine/tool-parser.js'
+import { StreamingToolParser, extractToolBlocks, formatResult, formatDisplayForActivityLog } from '../engine/tool-parser.js'
+
+const DEBUG = true
+
+function debugLog(...args) {
+  if (DEBUG) console.log('[DEBUG]', ...args)
+}
 
 let abortController = null
 const MAX_ACTIVE_SKILLS = 3
@@ -104,6 +110,37 @@ function formatToolExecutionSuccess(name, output) {
     output,
   }
   return `TOOL_EXECUTION_OK\n${JSON.stringify(payload, null, 2)}`
+}
+
+function isMissingRequiredArg(value) {
+  if (value === undefined || value === null) return true
+  if (typeof value === 'string' && value.trim() === '') return true
+  return false
+}
+
+function buildToolXmlExample(tool) {
+  const props = tool?.parameters?.properties || {}
+  const required = tool?.parameters?.required || []
+  const lines = [`<${tool.name}>`]
+  for (const name of required) {
+    const hint = props[name]?.description ? `<!-- ${props[name].description} -->` : ''
+    lines.push(`  <${name}>...</${name}>${hint ? ` ${hint}` : ''}`)
+  }
+  lines.push(`</${tool.name}>`)
+  return lines.join('\n')
+}
+
+function buildToolSyntaxError(name, args, tool, missingRequired) {
+  const payload = {
+    status: 'error',
+    tool: name,
+    cause: 'TOOL_SYNTAX_ERROR',
+    message: `Invalid tool XML arguments for '${name}'. Missing required params: ${missingRequired.join(', ')}`,
+    required_params: tool?.parameters?.required || [],
+    received_args: args,
+    correct_xml_example: buildToolXmlExample(tool),
+  }
+  return `TOOL_SYNTAX_ERROR\n${JSON.stringify(payload, null, 2)}`
 }
 
 function handleSkillControlTool(name, args, sessionId) {
@@ -232,6 +269,18 @@ async function dispatchToolBlock(block, sessionId) {
 
   const tool = toolRegistry.get(name)
   if (tool) {
+    const required = tool?.parameters?.required || []
+    const missingRequired = required.filter((key) => isMissingRequiredArg(args?.[key]))
+    if (missingRequired.length > 0) {
+      return {
+        ok: false,
+        kind: 'tool',
+        name,
+        args,
+        resultText: buildToolSyntaxError(name, args, tool, missingRequired),
+      }
+    }
+
     try {
       const result = executeTool(tool.path, args)
       return {
@@ -367,6 +416,11 @@ export function registerIpcHandlers() {
 
     const modelStr = settings?.chatModel || config.chatModel
     const modelConfig = config.resolveModel(modelStr)
+    debugLog('chat:send start', {
+      sessionId,
+      model: modelConfig.model,
+      messages: Array.isArray(messages) ? messages.length : 0,
+    })
 
     try {
       const sessionDir = sessionId ? database.sessionDir(sessionId) : null
@@ -384,6 +438,11 @@ export function registerIpcHandlers() {
 
       for (let round = 1; round <= maxRounds; round += 1) {
         if (abortController.signal.aborted) break
+        debugLog('round start', { round, conversationMessages: conversation.length })
+        const roundStartMs = Date.now()
+        let firstChunkLogged = false
+        let contentChars = 0
+        let reasoningChars = 0
 
         const activeSkills = getActiveSkills(sessionId)
         const systemMsg = buildSystemPrompt(runtimeTools, agentRegistry.list(), skillRegistry.list(), sessionDir, activeSkills)
@@ -404,7 +463,17 @@ export function registerIpcHandlers() {
         for await (const event of stream) {
           if (abortController.signal.aborted) break
 
+          if (!firstChunkLogged && (event.type === 'content' || event.type === 'reasoning')) {
+            firstChunkLogged = true
+            debugLog('stream first chunk', {
+              round,
+              type: event.type,
+              ttfbMs: Date.now() - roundStartMs,
+            })
+          }
+
           if (event.type === 'content') {
+            contentChars += event.content?.length || 0
             roundRawContent += event.content
             for (const parsedEvent of parser.feed(event.content)) {
               if (parsedEvent.type === 'content' && parsedEvent.content) {
@@ -415,6 +484,7 @@ export function registerIpcHandlers() {
           }
 
           if (event.type === 'reasoning') {
+            reasoningChars += event.content?.length || 0
             reasoningBuffer += event.content
             win.webContents.send('chat:reasoning', event.content)
           }
@@ -428,12 +498,45 @@ export function registerIpcHandlers() {
         }
 
         finalVisibleContent = roundVisibleContent
+        debugLog('round stream complete', {
+          round,
+          durationMs: Date.now() - roundStartMs,
+          rawLength: roundRawContent.length,
+          visibleLength: roundVisibleContent.length,
+          contentChars,
+          reasoningChars,
+        })
+
+        if (!roundRawContent.trim()) {
+          debugLog('empty llm response', { round, sessionId })
+        }
 
         const assistantMsg = { role: 'assistant', content: roundRawContent }
         conversation.push(assistantMsg)
 
-        const toolBlocks = parser.toolBlocks || []
+        let toolBlocks = parser.toolBlocks || []
+        debugLog('tool blocks from streaming parser', {
+          round,
+          count: toolBlocks.length,
+          names: toolBlocks.map((b) => b.name),
+        })
+        if (toolBlocks.length === 0 && roundRawContent) {
+          const fallback = extractToolBlocks(roundRawContent, knownTools)
+          if (fallback.length > 0) {
+            toolBlocks = fallback
+            debugLog('tool blocks recovered by fallback', {
+              round,
+              count: fallback.length,
+              names: fallback.map((b) => b.name),
+            })
+            console.warn('[tool-parser] Streaming parser missed tool block; fallback extraction recovered it', {
+              recovered: fallback.map((b) => b.name),
+              round,
+            })
+          }
+        }
         if (toolBlocks.length === 0) {
+          debugLog('round finished with no tool blocks', { round })
           break
         }
 
@@ -443,6 +546,12 @@ export function registerIpcHandlers() {
         win.webContents.send('chat:status', { value: 'tool_run', content: `Running: ${block.name}...` })
 
         const dispatch = await dispatchToolBlock(block, sessionId)
+        debugLog('tool dispatch result', {
+          round,
+          name: dispatch.name,
+          ok: dispatch.ok,
+          resultLength: dispatch.resultText?.length || 0,
+        })
         const wrappedResult = formatResult(dispatch.name, dispatch.resultText)
         conversation.push({ role: 'user', content: wrappedResult })
 
@@ -453,6 +562,10 @@ export function registerIpcHandlers() {
       }
 
       if (!abortController.signal.aborted) {
+        debugLog('chat:send done', {
+          finalVisibleLength: finalVisibleContent.length,
+          reasoningLength: reasoningBuffer.length,
+        })
         win.webContents.send('chat:usage', {
           tokens: finalVisibleContent.length / 4,
           cost: 0,
@@ -461,6 +574,10 @@ export function registerIpcHandlers() {
         win.webContents.send('chat:done', { content: finalVisibleContent, reasoning: reasoningBuffer })
       }
     } catch (err) {
+      debugLog('chat:send error', {
+        message: err?.message || String(err),
+        stack: err?.stack || null,
+      })
       if (!abortController?.signal.aborted) {
         win.webContents.send('chat:error', err.message || String(err))
       }

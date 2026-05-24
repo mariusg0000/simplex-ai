@@ -44,6 +44,7 @@ const ALL_SUGGESTIONS = [
  */
 export function ChatView({ messages, onSend, streaming, reasoning, onAbort }) {
   const [input, setInput] = React.useState('')
+  const [reasoningExpanded, setReasoningExpanded] = React.useState(true)
   const messagesEndRef = React.useRef(null)
   const textareaRef = React.useRef(null)
 
@@ -103,6 +104,12 @@ export function ChatView({ messages, onSend, streaming, reasoning, onAbort }) {
   React.useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, streaming])
+
+  React.useEffect(() => {
+    if (reasoning && reasoningExpanded) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [reasoning, reasoningExpanded])
 
   const handleSubmit = () => {
     const trimmed = input.trim()
@@ -197,7 +204,15 @@ export function ChatView({ messages, onSend, streaming, reasoning, onAbort }) {
           return null
         })}
         {streaming && <ChatBubble role="assistant" content={streaming} streaming />}
-        {reasoning && <ReasoningBlock content={reasoning} />}
+        {reasoning && (
+          <ReasoningBlock
+            content={reasoning}
+            isStreaming
+            expanded={reasoningExpanded}
+            onExpandedChange={setReasoningExpanded}
+            defaultExpanded
+          />
+        )}
         <div ref={messagesEndRef} />
       </div>
       {inputArea}

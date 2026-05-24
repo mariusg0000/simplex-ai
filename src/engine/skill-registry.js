@@ -30,8 +30,8 @@ export class SkillRegistry {
 
   async discover() {
     const skillDirs = [
+      path.join(process.cwd(), 'src', 'skills'),
       path.join(config.simplexHome, 'skills'),
-      path.join(process.cwd(), 'skills'),
     ]
 
     for (const dir of skillDirs) {

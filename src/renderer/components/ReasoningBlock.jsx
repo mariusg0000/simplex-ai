@@ -7,23 +7,31 @@ import React from 'react'
 import { Brain, ChevronDown } from 'lucide-react'
 import { MarkdownRenderer } from './MarkdownRenderer.jsx'
 
-export function ReasoningBlock({ content }) {
-  const [expanded, setExpanded] = React.useState(false)
+export function ReasoningBlock({ content, isStreaming = false, expanded, onExpandedChange, defaultExpanded = false }) {
+  const isControlled = typeof expanded === 'boolean'
+  const [internalExpanded, setInternalExpanded] = React.useState(defaultExpanded)
+  const open = isControlled ? expanded : internalExpanded
+
+  const handleToggle = () => {
+    const next = !open
+    if (!isControlled) setInternalExpanded(next)
+    onExpandedChange?.(next)
+  }
 
   return (
-    <div className="reasoning-block">
+    <div className={`reasoning-block ${isStreaming ? 'reasoning-live' : ''}`}>
       <button
         className="reasoning-toggle"
-        onClick={() => setExpanded((v) => !v)}
+        onClick={handleToggle}
       >
         <Brain size={13} />
         Thinking
         <ChevronDown
           size={13}
-          className={`reasoning-chevron ${expanded ? 'open' : ''}`}
+          className={`reasoning-chevron ${open ? 'open' : ''}`}
         />
       </button>
-      <div className={`reasoning-content ${expanded ? 'visible' : ''}`}>
+      <div className={`reasoning-content ${open ? 'visible' : ''}`}>
         <MarkdownRenderer content={content} />
       </div>
     </div>

@@ -10,8 +10,8 @@ export class ToolRegistry {
 
   async discover() {
     const toolDirs = [
+      path.join(process.cwd(), 'src', 'tools'),
       path.join(config.simplexHome, 'tools'),
-      path.join(process.cwd(), 'tools'),
     ]
 
     for (const dir of toolDirs) {
@@ -21,8 +21,9 @@ export class ToolRegistry {
         try {
           const schema = await inspectTool(path.join(dir, file))
           this.tools.set(schema.name, { ...schema, path: path.join(dir, file) })
-        } catch {
+        } catch (err) {
           // skip tools that fail inspection
+          console.warn(`[tool-registry] Failed to inspect tool '${file}' from '${dir}': ${err?.message || String(err)}`)
         }
       }
     }

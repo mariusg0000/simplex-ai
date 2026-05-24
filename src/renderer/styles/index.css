@@ -719,6 +719,7 @@ html, body, #root {
 .reasoning-block {
   align-self: flex-start;
   max-width: 76%;
+  width: 76%;
   margin-bottom: 4px;
   animation: fadeSlideUp 0.2s ease both;
 }
@@ -773,9 +774,21 @@ html, body, #root {
 }
 
 .reasoning-content.visible {
-  max-height: 600px;
+  max-height: none;
+  overflow: visible;
   opacity: 1;
   padding: 12px 14px;
+}
+
+.reasoning-live .reasoning-toggle {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 1px var(--accent-dim) inset;
+  animation: reasoningPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes reasoningPulse {
+  0%, 100% { box-shadow: 0 0 0 1px var(--accent-dim) inset; }
+  50% { box-shadow: 0 0 0 1px var(--accent-glow) inset; }
 }
 
 /* ═══════════════════════════════════════════════
