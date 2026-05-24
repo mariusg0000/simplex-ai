@@ -1,11 +1,19 @@
+/**
+ * config.js — src/main/config.js
+ * Loads application settings and environment-backed provider configuration.
+ * Layer: Main Process / Dependencies: dotenv, fs, path, os.
+ */
 import dotenv from 'dotenv'
 import path from 'path'
 import os from 'os'
 import fs from 'fs'
+import { fileURLToPath } from 'url'
 
 const SIMPLEX_HOME = path.join(os.homedir(), '.simplexai')
 const CONFIG_PATH = path.join(SIMPLEX_HOME, 'config.json')
-const ORIGINAL_ENV_PATH = path.resolve(process.cwd(), '.env')
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+const ORIGINAL_ENV_PATH = path.resolve(__dirname, '../../.env')
 
 dotenv.config({ path: ORIGINAL_ENV_PATH, override: true })
 

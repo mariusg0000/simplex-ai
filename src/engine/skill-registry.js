@@ -36,3 +36,5 @@ export class SkillRegistry {
     return Array.from(this.skills.values())
   }
 }
+
+export const skillRegistry = new SkillRegistry()

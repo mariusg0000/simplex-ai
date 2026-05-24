@@ -48,4 +48,12 @@ export class AgentRegistry {
   list() {
     return Array.from(this.agents.values())
   }
+
+  getDescriptions() {
+    return this.list()
+      .map((agent) => `[Agent: ${agent.name}]\n${agent.rolePrompt || ''}`)
+      .join('\n\n')
+  }
 }
+
+export const agentRegistry = new AgentRegistry()

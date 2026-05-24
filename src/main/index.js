@@ -2,6 +2,9 @@ import { app, BrowserWindow } from 'electron'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { registerIpcHandlers } from './ipc-handlers.js'
+import { agentRegistry } from '../engine/agent-registry.js'
+import { toolRegistry } from '../engine/tool-registry.js'
+import { skillRegistry } from '../engine/skill-registry.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -38,7 +41,9 @@ function createWindow() {
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  agentRegistry.discover()
+  await Promise.all([toolRegistry.discover(), skillRegistry.discover()])
   registerIpcHandlers()
   createWindow()
 })

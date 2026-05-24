@@ -1,7 +1,81 @@
+/**
+ * system-prompt.js — src/main/system-prompt.js
+ * Builds the dynamic system prompt used by the main chat agent.
+ * Layer: Main Process / Dependencies: config, CLI prompt helpers, registries.
+ */
+import { execSync } from 'child_process'
+import fs from 'fs'
+import path from 'path'
 import { config } from './config.js'
+import { CLI_PROMPTS, EXCLUDED_CLI, TOOL_ALIASES } from './prompts.js'
+
+let envCache = null
+
+function buildToolsSection(tools) {
+  const lines = [
+    '## AVAILABLE TOOLS',
+    '',
+    'Call tools with XML blocks:',
+    '<tool_name>',
+    '  <param_name>value</param_name>',
+    '</tool_name>',
+    '',
+    'Tools:',
+  ]
+
+  for (const tool of tools) {
+    const desc = (tool.description || '').trim()
+    lines.push(`• ${tool.name} — ${desc}`)
+    const props = tool.parameters?.properties || {}
+    const required = new Set(tool.parameters?.required || [])
+    for (const [pName, pInfo] of Object.entries(props)) {
+      const req = required.has(pName) ? ' (required)' : ''
+      lines.push(`  <${pName}>${req} — ${pInfo.description || ''}`)
+    }
+  }
+
+  lines.push('', 'IMPORTANT: Return ONLY ONE tool block per response.', 'Output the XML block without surrounding explanation or markdown fences.')
+  return lines.join('\n')
+}
+
+function findTool(cmd) {
+  for (const name of [cmd, ...(TOOL_ALIASES[cmd] || [])]) {
+    try {
+      const result = execSync(`which "${name}" 2>/dev/null`, { encoding: 'utf-8', timeout: 3000 }).trim()
+      if (result) return result
+    } catch {
+      // ignore lookup failures
+    }
+  }
+  return null
+}
+
+function pythonPackageAvailable(pkg) {
+  const scriptsVenv = path.join(config.simplexHome, 'scripts', '.venv', 'bin', 'python')
+  const python = fs.existsSync(scriptsVenv) ? scriptsVenv : 'python3'
+  try {
+    execSync(`"${python}" -c "import ${pkg}"`, { encoding: 'utf-8', timeout: 5000 })
+    return true
+  } catch {
+    return false
+  }
+}
 
 function buildEnvSection() {
-  return ''
+  if (envCache !== null) return envCache
+
+  const lines = []
+  for (const [cmd, prompt] of Object.entries(CLI_PROMPTS)) {
+    if (EXCLUDED_CLI.has(cmd)) continue
+    if (cmd === 'pandas') {
+      if (pythonPackageAvailable('pandas')) lines.push(prompt)
+    } else if (findTool(cmd)) {
+      lines.push(prompt)
+    }
+  }
+
+  envCache = lines.join('\n')
+  return envCache
 }
 
 export function buildSystemPrompt(tools, agents, skills, sessionFolder) {
@@ -18,29 +92,7 @@ export function buildSystemPrompt(tools, agents, skills, sessionFolder) {
   }
 
   if (tools.length > 0) {
-    const toolLines = [
-      '\n## AVAILABLE TOOLS',
-      '',
-      'Call tools with XML blocks:',
-      '<tool_name>',
-      '  <param_name>value</param_name>',
-      '</tool_name>',
-      '',
-      'Tools:',
-    ]
-    for (const tool of tools) {
-      toolLines.push(`• ${tool.name} — ${tool.description}`)
-      if (tool.parameters) {
-        const props = tool.parameters.properties || {}
-        const required = new Set(tool.parameters.required || [])
-        for (const [pName, pInfo] of Object.entries(props)) {
-          const req = required.has(pName) ? ' (required)' : ''
-          toolLines.push(`  <${pName}>${req} — ${pInfo.description || ''}`)
-        }
-      }
-    }
-    toolLines.push('', 'IMPORTANT: Return ONLY ONE tool block per response.', 'Output the XML block without surrounding explanation or markdown fences.')
-    content += '\n\n' + toolLines.join('\n')
+    content += '\n\n' + buildToolsSection(tools)
   }
 
   const now = new Date()
@@ -48,7 +100,7 @@ export function buildSystemPrompt(tools, agents, skills, sessionFolder) {
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
   const timeStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${now.getHours()}:00 (${monthNames[now.getMonth()]}, ${dayNames[now.getDay()]})`
 
-  content += `\n\nCWD: ${process.cwd()}\nCurrent time: ${timeStr}\n\nWorking directory: ${config.simplexHome}\n  - .tmp/     -> temporary/intermediate files (auto-cleaned after 30 min)`
+  content += `\n\nCWD: ${process.cwd()}\nCurrent time: ${timeStr}\n\nWorking directory: ${config.simplexHome}\n  - .tmp/     -> temporary/intermediate files (auto-cleaned after 30 min)\n  - scripts/  -> reusable Python scripts (see catalog below)`
 
   if (sessionFolder) {
     content += `\n  - sessions/ -> current session workspace\n                 ${sessionFolder}/\n    All temporary files (content, scripts, generated documents) for this chat go here.\n    Sub-agents work ONLY inside this folder.`

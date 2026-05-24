@@ -35,4 +35,36 @@ export class ToolRegistry {
   list() {
     return Array.from(this.tools.values())
   }
+
+  getMainAgentTextDescriptions() {
+    const tools = this.list()
+    if (tools.length === 0) return ''
+
+    const lines = [
+      '## AVAILABLE TOOLS',
+      '',
+      'Call tools with XML blocks:',
+      '<tool_name>',
+      '  <param_name>value</param_name>',
+      '</tool_name>',
+      '',
+      'Tools:',
+    ]
+
+    for (const tool of tools) {
+      const desc = (tool.description || '').trim()
+      lines.push(`• ${tool.name} — ${desc}`)
+      const props = tool.parameters?.properties || {}
+      const required = new Set(tool.parameters?.required || [])
+      for (const [pName, pInfo] of Object.entries(props)) {
+        const req = required.has(pName) ? ' (required)' : ''
+        lines.push(`  <${pName}>${req} — ${pInfo.description || ''}`)
+      }
+    }
+
+    lines.push('', 'IMPORTANT: Return ONLY ONE tool block per response.', 'Output the XML block without surrounding explanation or markdown fences.')
+    return lines.join('\n')
+  }
 }
+
+export const toolRegistry = new ToolRegistry()

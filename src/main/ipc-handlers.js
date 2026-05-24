@@ -9,6 +9,9 @@ import { storage } from './storage.js'
 import { database } from './database.js'
 import { streamChat } from './llm/client.js'
 import { buildSystemPrompt } from './system-prompt.js'
+import { agentRegistry } from '../engine/agent-registry.js'
+import { toolRegistry } from '../engine/tool-registry.js'
+import { skillRegistry } from '../engine/skill-registry.js'
 import { StreamingToolParser } from '../engine/tool-parser.js'
 
 let abortController = null
@@ -88,7 +91,7 @@ export function registerIpcHandlers() {
 
     try {
       const sessionDir = sessionId ? database.sessionDir(sessionId) : null
-      const systemMsg = buildSystemPrompt([], [], [], sessionDir)
+      const systemMsg = buildSystemPrompt(toolRegistry.list(), agentRegistry.list(), skillRegistry.list(), sessionDir)
       const fullMessages = [systemMsg, ...messages]
 
       const parser = new StreamingToolParser()
